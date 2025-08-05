@@ -1,8 +1,9 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.28)
 
 
 
 
-target_compile_options(  PRIVATE ${PROJECT_COMPILE_OPTIONS})
+
+add_subdirectory(c++20)
 
 
