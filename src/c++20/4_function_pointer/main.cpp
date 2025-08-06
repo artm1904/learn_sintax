@@ -37,9 +37,6 @@ class Game {
 
     name::InputManager& GetInputManager() { return InputManager_; }
 
-    void DispatchMessage(name::InputManager::EventType type, const std::string& data) {
-        InputManager_.DispatchMessage(type, data);
-    }
 
    private:
     name::InputManager InputManager_;
