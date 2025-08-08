@@ -31,6 +31,7 @@ class Game {
                 }
                  case -100: {
                 std::cout << "Restarting TaskManager" << std::endl;
+                TaskManager_.Stop();
                 TaskManager_.Start();
                 break;
         }

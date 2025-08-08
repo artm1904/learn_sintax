@@ -1,8 +1,10 @@
 #pragma once
 
+#include <condition_variable>
 #include <deque>
 #include <functional>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -16,6 +18,7 @@ class TaskManager {
     ~TaskManager();
 
     void Start();
+    void Stop();
 
     void QueueCommand(Command);
 
@@ -27,6 +30,8 @@ class TaskManager {
     bool Running_{false};
     std::deque<Command> CommandQueue_;
     std::thread CommandThread_;
+    std::mutex CommandMutex_;
+    std::condition_variable CommandCondition_;
 };
 
 

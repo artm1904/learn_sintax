@@ -2,52 +2,79 @@
 
 #include <iostream>
 
-TaskManager::~TaskManager() {
+TaskManager::~TaskManager() { Stop(); }
+
+void TaskManager::Start() {
+    std::unique_lock lock(CommandMutex_);
+    if (Running_) {
+        std::cout << "Command thread is already running" << std::endl;
+        return;
+    }
+    lock.unlock();
+ 
     if (CommandThread_.joinable()) {
+        CommandThread_.join();
+    }
+
+    lock.lock();
+    CommandQueue_.clear();
+    Running_ = true;
+    CommandThread_ = std::thread(&TaskManager::Run, this);
+    std::cout << "TaskManager started" << std::endl;
+}
+
+void TaskManager::Stop() {
+    {
+        std::unique_lock lock(CommandMutex_);
+        if (!Running_) {
+            // If not "running" but thread is there, it might have stopped itself.
+            // We still need to join it.
+            if (CommandThread_.joinable()) {
+                lock.unlock();
+                CommandThread_.join();
+            }
+            return;
+        }
         Running_ = false;
+    }
+    CommandCondition_.notify_one();
+    if (CommandThread_.joinable()) {
         CommandThread_.join();
     }
 }
 
-void TaskManager::Start() {
-    std::cout << "TaskManager started" << std::endl;
-
-    if (CommandThread_.joinable()) {
+void TaskManager::QueueCommand(Command command) {
+    {
+        std::unique_lock lock(CommandMutex_);
         if (!Running_) {
-            CommandThread_.join();
-            std::cout << "Thread finished, but wasn't joined" << std::endl;
-        } else {
-            std::cout << "Command thread is already running" << std::endl;
+            std::cout << "TaskManager is not running" << std::endl;
             return;
         }
+
+        std::cout << std::format("Command {} queued", command) << std::endl;
+        CommandQueue_.push_back(command);
     }
-
-    CommandQueue_.clear();
-    CommandThread_ = std::thread(&TaskManager::Run, this);
-}
-
-void TaskManager::QueueCommand(Command command) {
-    if (!Running_) {
-        std::cout << "TaskManager is not running" << std::endl;
-        return;
-    }
-
-    std::cout << std::format("Command {} queued", command) << std::endl;
-
-    CommandQueue_.push_back(command);
+    CommandCondition_.notify_one();
 }
 
 void TaskManager::Run() {
     std::cout << "TaskManager running" << std::endl;
-    Running_ = true;
-    while (Running_) {
-        if (CommandQueue_.empty()) {
-            continue;
+    while (true) {
+        Command command;
+        {
+            std::unique_lock lock(CommandMutex_);
+            // Поток "засыпает" здесь, пока очередь не станет непустой ИЛИ пока Running_ не станет false
+            CommandCondition_.wait(lock, [this] { return !CommandQueue_.empty() || !Running_; });
+
+            // Условие выхода из цикла: поток больше не работает и все команды обработаны
+            if (!Running_ && CommandQueue_.empty()) {
+                break;
+            }
+
+            command = CommandQueue_.front();
+            CommandQueue_.pop_front();
         }
-
-        ExcecuteCommand(CommandQueue_.front());
-
-        CommandQueue_.pop_front();
+        ExcecuteCommand(command);
     }
     std::cout << "TaskManager stopped" << std::endl;
 }
@@ -64,9 +91,11 @@ void TaskManager::ExcecuteCommand(Command command) {
         }
        
         default: {
-            std::cout << std::format("Executing unknown command {}", command) << std::endl;
+            std::cout << std::format("Executing unknown command {}, stopping TaskManager", command)
+                      << std::endl;
+            // Безопасно изменяем флаг, чтобы цикл Run() завершился
+            std::unique_lock lock(CommandMutex_);
             Running_ = false;
-            std::cout << "Stopping TaskManager" << std::endl;
             break;
         }
     }

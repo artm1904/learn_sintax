@@ -30,6 +30,8 @@
 ![alt text](img/image-2.png)
 
 Используюьтся: std::thread, std::thread.joinable() std::thread.join() 
+ std::unique_lock  - для блокировки при доступе к очереди и параметру флага
+     std::condition_variable  - для засыпания потока и освобождения мьютекса, пока нет задача  
 
 
 
